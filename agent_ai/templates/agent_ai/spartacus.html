@@ -1,0 +1,116 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spart Assistant</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      #chat-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 15px;
+        border-radius: 50%;
+        font-size: 18px;
+        cursor: pointer;
+        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
+      }
+      #chat-modal {
+        display: none;
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        width: 300px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+        padding: 15px;
+      }
+      #chat-header {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+      }
+      #chat-body {
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 10px;
+      }
+      #chat-footer {
+        display: flex;
+        margin-top: 10px;
+      }
+      #chat-input {
+        flex: 1;
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      #send-button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        margin-left: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="chat-button">💬</button>
+
+    <div id="chat-modal">
+      <div id="chat-header">
+        <span>Spart</span>
+        <button onclick="fecharChat()">X</button>
+      </div>
+      <div id="chat-body"></div>
+      <div id="chat-footer">
+        <input type="text" id="chat-input" placeholder="Faça sua pergunta..." />
+        <button id="send-button" onclick="enviarPergunta()">➤</button>
+      </div>
+    </div>
+
+    <script>
+      const chatButton = document.getElementById("chat-button");
+      const chatModal = document.getElementById("chat-modal");
+      const chatBody = document.getElementById("chat-body");
+      const chatInput = document.getElementById("chat-input");
+
+      chatButton.addEventListener("click", () => {
+        chatModal.style.display = "block";
+      });
+
+      function fecharChat() {
+        chatModal.style.display = "none";
+      }
+
+      async function enviarPergunta() {
+        const pergunta = chatInput.value.trim();
+        if (!pergunta) return;
+
+        chatBody.innerHTML += `<div><b>Você:</b> ${pergunta}</div>`;
+        chatInput.value = "";
+
+        const response = await fetch("api/perguntar/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pergunta }),
+        });
+
+        const data = await response.json();
+        chatBody.innerHTML += `<div><b>Spart:</b> ${data.resposta}</div>`;
+      }
+    </script>
+  </body>
+</html>
