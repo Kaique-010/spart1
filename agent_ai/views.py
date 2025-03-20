@@ -149,7 +149,8 @@ def perguntar_spart(request):
         if similaridade > melhor_similaridade:
             melhor_similaridade = similaridade
             melhor_resposta = resposta
-
+    
+    audio_url = criar_audio(str(melhor_resposta.content))    
 
     if melhor_similaridade > 0.5:
         return JsonResponse({
@@ -158,11 +159,11 @@ def perguntar_spart(request):
             'manual':f'{melhor_resposta.manual.url}',
             'feedback': 'Essa é a melhor resposta que encontrei para sua pergunta.',
             'sugestao': 'Se não for isso, tente fornecer mais detalhes para eu te ajudar melhor.',
+            'audio_url': audio_url
             
         })
         
-    # Gerar o áudio
-    audio_url = criar_audio(melhor_resposta)
+
 
     return JsonResponse({
     
@@ -170,7 +171,7 @@ def perguntar_spart(request):
         'feedback': 'Essa é a melhor resposta que encontrei para sua pergunta.',
         'sugestao': 'Se não for isso, tente fornecer mais detalhes para eu te ajudar melhor.',
         'central': 'Caso queria pode dar uma olhadinha na nossa central de ajuda: https://spartacus.movidesk.com/kb/',
-        'audio_url': audio_url
+
          
     })
 

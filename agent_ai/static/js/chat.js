@@ -1,62 +1,31 @@
-let utterance = null // Variável global para manter o objeto da fala
-
-// Abrir o modal e enviar saudação automática
 document.getElementById('chat-button').addEventListener('click', () => {
-  console.log('Botão de chat clicado')
   document.getElementById('chat-modal').style.display = 'block'
-
-  const chatBody = document.getElementById('chat-body')
-  console.log('Verificando se há mensagens no chat')
-
-  if (chatBody.innerHTML.trim() === '') {
-    console.log('Nenhuma mensagem encontrada. Enviando saudação.')
-    const saudacaoDiv = document.createElement('div')
-    chatBody.appendChild(saudacaoDiv)
-
-    const typingIndicator = document.createElement('div')
-    typingIndicator.id = 'typing-indicator'
-    typingIndicator.innerHTML = `<i>Spart está digitando...</i>`
-    chatBody.appendChild(typingIndicator)
-
-    escreverTexto(
-      saudacaoDiv,
-      `Spart: Olá! Como posso te ajudar hoje?`,
-      30,
-      () => {
-        typingIndicator.remove()
-        adicionarBotoesFala(saudacaoDiv, 'Olá! Como posso te ajudar hoje?')
-        console.log('Saudação enviada')
-      }
-    )
-  }
 })
 
 function fecharChat() {
-  console.log('Fechando chat')
   document.getElementById('chat-modal').style.display = 'none'
 }
 
 async function enviarPergunta() {
   const pergunta = document.getElementById('chat-input').value.trim()
   if (!pergunta) return
-  console.log('Pergunta enviada pelo usuário:', pergunta)
 
   const chatBody = document.getElementById('chat-body')
 
+  // Adicionar mensagem do usuário
   const perguntaDiv = document.createElement('div')
+  perguntaDiv.classList.add('chat-message', 'user-message')
   perguntaDiv.innerHTML = `<b>Você:</b> ${pergunta}`
   chatBody.appendChild(perguntaDiv)
-
   document.getElementById('chat-input').value = ''
 
+  // Indicador de digitação
   const typingIndicator = document.createElement('div')
-  typingIndicator.id = 'typing-indicator'
-  typingIndicator.innerHTML = `<i>Spart está digitando...</i>`
+  typingIndicator.innerHTML = `<i>Spart está Pensando...</i>`
   chatBody.appendChild(typingIndicator)
-
   chatBody.scrollTop = chatBody.scrollHeight
 
-  console.log('Enviando requisição para API')
+  // Enviar requisição para a API
   const response = await fetch('api/perguntar/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -67,99 +36,92 @@ async function enviarPergunta() {
 
   const data = await response.json()
   console.log('Resposta recebida da API:', data)
-  const { resposta, feedback, sugestao, central, manual } = data
+  const { resposta, audio_url, feedback, sugestao, central, manual } = data
 
+  // Adicionar resposta do bot com função de escrita
   const respostaDiv = document.createElement('div')
+  respostaDiv.classList.add('chat-message', 'bot-message')
+  respostaDiv.innerHTML = `<b>Spart:</b> ${resposta}`
   chatBody.appendChild(respostaDiv)
 
-  escreverTexto(respostaDiv, `Spart: ${resposta}`, 5, () => {
-    console.log('Resposta exibida:', resposta)
+  // Chamar a função de escreverTexto para a resposta
+  escreverTexto(respostaDiv, resposta)
 
-    if (feedback) {
-      const feedbackDiv = document.createElement('div')
-      feedbackDiv.style.fontStyle = 'italic'
-      feedbackDiv.style.color = '#ccc'
-      feedbackDiv.textContent = feedback
-      chatBody.appendChild(feedbackDiv)
-      console.log('Feedback adicionado:', feedback)
-    }
+  // Adicionar player de áudio, se houver, e iniciar automaticamente
+  if (audio_url && audio_url.trim() !== '') {
+    const audioDiv = document.createElement('div')
+    audioDiv.classList.add('audio-message')
 
-    if (sugestao) {
-      const sugestaoDiv = document.createElement('div')
-      sugestaoDiv.style.fontStyle = 'italic'
-      sugestaoDiv.style.color = '#ccc'
-      sugestaoDiv.textContent = sugestao
-      chatBody.appendChild(sugestaoDiv)
-      console.log('Sugestão adicionada:', sugestao)
-    }
+    const audioElement = document.createElement('audio')
+    audioElement.controls = true
+    audioElement.autoplay = true
+    audioElement.playbackRate = 1.5 // Definindo a velocidade para 1.5x
+    const source = document.createElement('source')
+    source.src = audio_url
+    source.type = 'audio/mpeg'
+    audioElement.appendChild(source)
 
-    if (central && central.trim() !== '') {
-      const centralDiv = document.createElement('div')
-      centralDiv.style.fontStyle = 'italic'
-      centralDiv.style.color = '#ccc'
-      centralDiv.textContent = central
-      chatBody.appendChild(centralDiv)
-      console.log('Central adicionada:', central)
-    }
+    audioDiv.appendChild(audioElement)
+    chatBody.appendChild(audioDiv)
+  }
 
-    if (manual && manual.trim() !== '') {
-      const manualDiv = document.createElement('div')
-      manualDiv.innerHTML = `<a href="${manual}" target="_blank">📖 Acesse o manual completo aqui</a>`
-      manualDiv.style.marginTop = '5px'
-      chatBody.appendChild(manualDiv)
-      console.log('Link do manual adicionado:', manual)
-    }
+  // Exibir mensagens de feedback, sugestão, central, manual
+  if (feedback) {
+    const feedbackDiv = document.createElement('div')
+    feedbackDiv.style.fontStyle = 'italic'
+    feedbackDiv.style.color = '#ccc'
+    feedbackDiv.textContent = feedback
+    chatBody.appendChild(feedbackDiv)
+  }
 
-    adicionarBotoesFala(respostaDiv, resposta)
-    chatBody.scrollTop = chatBody.scrollHeight
-  })
+  if (sugestao) {
+    const sugestaoDiv = document.createElement('div')
+    sugestaoDiv.style.fontStyle = 'italic'
+    sugestaoDiv.style.color = '#ccc'
+    sugestaoDiv.textContent = sugestao
+    chatBody.appendChild(sugestaoDiv)
+  }
+
+  if (central && central.trim() !== '') {
+    const centralDiv = document.createElement('div')
+    centralDiv.style.fontStyle = 'italic'
+    centralDiv.style.color = '#ccc'
+    centralDiv.textContent = central
+    chatBody.appendChild(centralDiv)
+  }
+
+  if (manual && manual.trim() !== '') {
+    const manualDiv = document.createElement('div')
+    manualDiv.innerHTML = ` 
+      <a href="${manual}" target="_blank">
+        📖 Acesse o manual completo aqui
+      </a>
+    `
+    manualDiv.style.marginTop = '5px'
+    chatBody.appendChild(manualDiv)
+  }
+
+  chatBody.scrollTop = chatBody.scrollHeight
 }
 
-function escreverTexto(element, texto, delay = 30, callback = null) {
+const TYPING_SPEED = 1.5
+
+function escreverTexto(
+  element,
+  texto,
+  delay = 15,
+  speed = TYPING_SPEED,
+  callback = null
+) {
   let i = 0
   function escrever() {
     if (i < texto.length) {
       element.textContent += texto.charAt(i)
       i++
-      setTimeout(escrever, delay)
+      setTimeout(escrever, speed * 10) // Ajuste na lógica para chamar o próximo caractere com a velocidade
     } else if (callback) {
       callback()
     }
   }
   escrever()
-}
-
-function falarTexto(texto) {
-  if ('speechSynthesis' in window) {
-    if (utterance) {
-      speechSynthesis.cancel()
-    }
-    utterance = new SpeechSynthesisUtterance(texto)
-    utterance.lang = 'pt-BR'
-    utterance.rate = 0.9
-    speechSynthesis.speak(utterance)
-    console.log('Falando texto:', texto)
-  } else {
-    console.log('API de síntese de fala não suportada.')
-  }
-}
-
-function pararFala() {
-  if ('speechSynthesis' in window && utterance) {
-    speechSynthesis.cancel()
-    console.log('Fala interrompida')
-  }
-}
-
-function adicionarBotoesFala(element, texto) {
-  const botaoDiv = document.createElement('div')
-  botaoDiv.innerHTML = `
-    <button onclick="falarTexto('${texto.replace(
-      /'/g,
-      "'"
-    )}')">🔊 Ouvir</button>
-    <button onclick="pararFala()">❌ Parar</button>
-  `
-  element.appendChild(botaoDiv)
-  console.log('Botões de fala adicionados')
 }

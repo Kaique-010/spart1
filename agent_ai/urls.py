@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('manual/<int:manual_id>/buscar/', views.buscar_manual, name='buscar_manual'),
@@ -8,3 +10,5 @@ urlpatterns = [
     path('api/perguntar/', views.perguntar_spart, name='perguntar_spart'), 
 
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

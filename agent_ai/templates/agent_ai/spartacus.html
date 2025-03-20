@@ -12,12 +12,13 @@
 </head>
 
 <body>
-  <button id="chat-button"><img src="{% static '/image/capacete.png' %}" style="height: 35px"
-      style="width: 15px" /></button>
+  <button id="chat-button">
+    <img src="{% static '/image/capacete.png' %}" style="height: 35px; width: 35px;" />
+  </button>
 
   <div id="chat-modal">
     <div id="chat-header">
-      <span><img src="{% static '/image/capacete.png' %}" style="height: 17px" style="width: 5px" />Spart</span>
+      <span><img src="{% static '/image/capacete.png' %}" style="height: 17px; width: 17px;" /> Spart</span>
       <button onclick="fecharChat()">X</button>
     </div>
     <div id="chat-body"></div>
