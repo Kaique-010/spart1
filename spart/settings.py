@@ -14,7 +14,7 @@ SECRET_KEY = 'django-insecure-r7t_y++!$nk1k5)cj-&qta&=dri+13+!@t0x9xfnelnd76^6xv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -61,11 +61,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'spart.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
+# Databases
 DATABASES = {
     'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'spart',
+        'USER': 'postgres',
+        'PASSWORD': '@spartacus201@',
+        'HOST': 'db', 
+        'PORT': '5432',
+    },
+
+
+    'sqlite': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
@@ -96,7 +104,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'pt-BR'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 

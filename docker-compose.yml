@@ -1,0 +1,28 @@
+services:
+  web:
+    build: .
+    container_name: spart1
+    volumes:
+      - .:/spart
+    ports:
+      - '8000:8000'
+    environment:
+      - DEBUG=1
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: spart
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: spartacus
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: '@spartacus201@'
+    ports:
+      - '5432:5432'
+
+volumes:
+  postgres_data:
