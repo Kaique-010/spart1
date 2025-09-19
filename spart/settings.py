@@ -1,23 +1,11 @@
 from pathlib import Path
 import os
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-r7t_y++!$nk1k5)cj-&qta&=dri+13+!@t0x9xfnelnd76^6xv'
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -28,6 +16,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'agent_ai',
     'rest_framework',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -64,18 +53,17 @@ WSGI_APPLICATION = 'spart.wsgi.application'
 # Databases
 DATABASES = {
     'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    },
+
+    'postgresql': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'spart',
         'USER': 'postgres',
         'PASSWORD': '@spartacus201@',
         'HOST': 'db', 
         'PORT': '5432',
-    },
-
-
-    'sqlite': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -98,10 +86,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
-
 LANGUAGE_CODE = 'pt-BR'
 
 TIME_ZONE = 'America/Sao_Paulo'
@@ -109,18 +93,99 @@ TIME_ZONE = 'America/Sao_Paulo'
 USE_I18N = True
 
 USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-
 STATIC_URL = 'static/'
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Para API pública
+    ],
+}
+
+# drf-spectacular Configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Spartacus AI Agent API',
+    'DESCRIPTION': '''
+    API do Agente AI Spartacus - Sistema de assistente virtual inteligente
+    
+    ## Funcionalidades Principais
+    
+    ### 🤖 Agente AI Inteligente
+    - Processamento de linguagem natural com GPT-3.5-turbo
+    - Busca vetorial usando embeddings OpenAI
+    - Respostas contextualizadas baseadas em manuais
+    - Geração automática de áudio das respostas
+    
+    ### 📚 Gestão de Conhecimento
+    - Processamento automático de manuais web
+    - Extração e indexação de conteúdo
+    - Busca por similaridade semântica
+    - Armazenamento otimizado de embeddings
+    
+    ### 🚀 Recursos Avançados
+    - Streaming de respostas em tempo real (SSE)
+    - Geração assíncrona de áudio
+    - API RESTful completa
+    - Documentação interativa
+    
+    ## Modelos de IA Utilizados
+    - **Embeddings**: text-embedding-ada-002 (OpenAI)
+    - **Chat**: gpt-3.5-turbo (OpenAI)
+    - **Áudio**: gTTS (Google Text-to-Speech)
+    
+    ## Autenticação
+    Esta API é pública e não requer autenticação para uso básico.
+    ''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api/',
+    'SERVERS': [
+        {
+            'url': 'http://localhost:8000',
+            'description': 'Servidor de Desenvolvimento'
+        },
+        {
+            'url': 'https://api.spartacus.com',
+            'description': 'Servidor de Produção'
+        }
+    ],
+    'TAGS': [
+        {
+            'name': 'Agente AI',
+            'description': 'Endpoints principais para interação com o agente'
+        },
+        {
+            'name': 'Manuais',
+            'description': 'Gestão e processamento de manuais'
+        },
+        {
+            'name': 'Respostas',
+            'description': 'Visualização de respostas armazenadas'
+        }
+    ],
+    'EXTERNAL_DOCS': {
+        'description': 'Central de Ajuda Spartacus',
+        'url': 'https://spartacus.movidesk.com/kb/'
+    },
+    'CONTACT': {
+        'name': 'Equipe Spartacus',
+        'email': 'suporte@spartacus.com.br'
+    },
+    'LICENSE': {
+        'name': 'Proprietary License',
+        'url': 'https://spartacus.com.br/license'
+    }
+}
 

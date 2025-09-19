@@ -18,13 +18,23 @@
 
   <div id="chat-modal">
     <div id="chat-header">
-      <span><img src="{% static '/image/capacete.png' %}" style="height: 17px; width: 17px;" /> Spart</span>
-      <button onclick="fecharChat()">X</button>
+      <span><img src="{% static '/image/capacete.png' %}" style="height: 17px; width: 17px;" /> Spart Assistant</span>
+      <div>
+        <button class="clear-chat-button" onclick="limparConversa()" title="Limpar conversa">🗑️</button>
+        <button onclick="fecharChat()" title="Fechar chat">✕</button>
+      </div>
     </div>
-    <div id="chat-body"></div>
+    <div id="chat-body">
+      <div class="message message-bot">
+        <div class="message-label">Spart</div>
+        <div class="message-content">
+          Olá! 👋 Sou o Spart, seu assistente especializado em ERP Spartacus. Como posso ajudar você hoje?
+        </div>
+      </div>
+    </div>
     <div id="chat-footer">
-      <input type="text" id="chat-input" placeholder="Faça sua pergunta..." />
-      <button id="send-button" onclick="enviarPergunta()">➤</button>
+      <input type="text" id="chat-input" placeholder="Digite sua pergunta..." onkeypress="handleKeyPress(event)" />
+      <button id="send-button" onclick="enviarPergunta()" title="Enviar mensagem">➤</button>
     </div>
   </div>
 

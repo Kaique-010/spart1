@@ -1,7 +1,15 @@
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def gerar_embeddings(texto):
-    return model.encode([texto])[0]  
+    response = client.embeddings.create(
+        model="text-embedding-ada-002",
+        input=texto
+    )
+    return response.data[0].embedding
+    
