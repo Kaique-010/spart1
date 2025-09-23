@@ -3,6 +3,28 @@ let sessionId = null; // Variável para manter o ID da sessão de conversa
 let isTyping = false; // Controla se está digitando
 let typingIndicator = null; // Referência ao indicador de digitação
 
+// Função para formatar respostas com quebras de linha adequadas
+function formatarResposta(texto) {
+  if (!texto) return '';
+  
+  // Adiciona quebras de linha após pontos finais seguidos de números (listas)
+  let textoFormatado = texto.replace(/(\.)\s*(\d+\.)/g, '$1\n\n$2');
+  
+  // Adiciona quebras de linha após dois pontos seguidos de texto (início de explicação)
+  textoFormatado = textoFormatado.replace(/(:)\s*([A-Z])/g, '$1\n$2');
+  
+  // Adiciona quebras de linha antes de passos numerados
+  textoFormatado = textoFormatado.replace(/(\s)(\d+\.)\s/g, '$1\n$2 ');
+  
+  // Adiciona quebras de linha antes de itens com hífen ou asterisco
+  textoFormatado = textoFormatado.replace(/(\s)([-*])\s/g, '$1\n$2 ');
+  
+  // Remove quebras de linha excessivas
+  textoFormatado = textoFormatado.replace(/\n{3,}/g, '\n\n');
+  
+  return textoFormatado.trim();
+}
+
 // Abrir o modal
 document.getElementById("chat-button").addEventListener("click", () => {
   document.getElementById("chat-modal").style.display = "block";
@@ -29,7 +51,7 @@ function limparConversa() {
       <div class="message message-bot">
         <div class="message-label">Spart</div>
         <div class="message-content">
-          Olá! 👋 Sou o Spart, seu assistente especializado em ERP Spartacus. Como posso ajudar você hoje?
+          Olá! Sou o Spart, seu assistente especializado em ERP Spartacus. Como posso ajudar você hoje?
         </div>
       </div>
     `;
@@ -96,7 +118,7 @@ function addUserMessage(message) {
 }
 
 // Função para adicionar mensagem do bot
-function addBotMessage(message, showActions = true) {
+function addBotMessage(message, showActions = true, imagens = []) {
   const chatBody = document.getElementById('chat-body');
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message message-bot';
@@ -106,14 +128,30 @@ function addBotMessage(message, showActions = true) {
     actionsHtml = `
       <div class="message-actions">
         <button class="action-button" onclick="falarTexto('${message.replace(/'/g, "\\'")}')">🔊 Ouvir</button>
-        <button class="action-button" onclick="pararFala()">⏹️ Parar</button>
+        <button class="action-button" onclick="pararFala()">⏹ Parar</button>
       </div>
     `;
+  }
+  
+  // Adiciona imagens se disponíveis
+  let imagensHtml = '';
+  if (imagens && imagens.length > 0) {
+    imagensHtml = '<div class="message-images">';
+    imagens.forEach(imagem => {
+      imagensHtml += `
+        <div class="image-container">
+          <img src="${imagem.url}" alt="${imagem.alt_text}" class="manual-image" onclick="expandirImagem('${imagem.url}', '${imagem.alt_text}')">
+          <div class="image-caption">${imagem.alt_text}</div>
+        </div>
+      `;
+    });
+    imagensHtml += '</div>';
   }
   
   messageDiv.innerHTML = `
     <div class="message-label">Spart</div>
     <div class="message-content">${message}</div>
+    ${imagensHtml}
     <div class="message-timestamp">${getTimestamp()}</div>
     ${actionsHtml}
   `;
@@ -150,7 +188,7 @@ async function enviarPergunta() {
   }
 
   try {
-    const response = await fetch("api/perguntar-stream/", {
+    const response = await fetch("api/perguntar/stream/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -200,11 +238,34 @@ async function enviarPergunta() {
             const parsed = JSON.parse(data);
             if (parsed.content) {
               respostaCompleta += parsed.content;
-              contentDiv.innerHTML = respostaCompleta;
+              contentDiv.innerHTML = formatarResposta(respostaCompleta);
               scrollToBottom();
             }
             if (parsed.session_id) {
               sessionId = parsed.session_id;
+            }
+            // Armazenar dados da resposta para uso posterior
+            if (parsed.imagens) {
+              window.lastResponseData = { imagens: parsed.imagens };
+            }
+            // Verificar se é o final do streaming
+            if (parsed.done) {
+              // Processar imagens se disponíveis
+              if (parsed.imagens && parsed.imagens.length > 0) {
+                const imagensDiv = document.createElement("div");
+                imagensDiv.className = 'message-images';
+                parsed.imagens.forEach((imagem) => {
+                  const imageContainer = document.createElement("div");
+                  imageContainer.className = 'image-container';
+                  imageContainer.innerHTML = `
+                    <img src="${imagem.url}" alt="${imagem.alt_text}" class="manual-image" onclick="expandirImagem('${imagem.url}', '${imagem.alt_text}')">
+                    <div class="image-caption">${imagem.alt_text}</div>
+                  `;
+                  imagensDiv.appendChild(imageContainer);
+                });
+                respostaDiv.appendChild(imagensDiv);
+              }
+              break;
             }
           } catch (e) {
             // Ignorar linhas que não são JSON válido
@@ -213,19 +274,21 @@ async function enviarPergunta() {
       }
     }
 
+    // As imagens já foram processadas durante o streaming
+    
     // Adicionar botões de áudio após a resposta completa
     const actionsDiv = document.createElement("div");
     actionsDiv.className = 'message-actions';
     actionsDiv.innerHTML = `
       <button class="action-button" onclick="falarTexto('${respostaCompleta.replace(/'/g, "\\'")}')">🔊 Ouvir</button>
-      <button class="action-button" onclick="pararFala()">⏹️ Parar</button>
+            <button class="action-button" onclick="pararFala()">⏹ Parar</button>
     `;
     respostaDiv.appendChild(actionsDiv);
 
   } catch (error) {
     console.error("Erro ao enviar pergunta:", error);
     hideTypingIndicator();
-    addBotMessage(`❌ Erro: ${error.message}`, false);
+    addBotMessage(`Erro: ${error.message}`, false);
   } finally {
      // Reabilitar interface
      isTyping = false;
@@ -256,5 +319,37 @@ function falarTexto(texto) {
 function pararFala() {
   if ('speechSynthesis' in window && utterance) {
     speechSynthesis.cancel(); // Cancela a fala em andamento
+  }
+}
+
+// Função para expandir imagem em modal
+function expandirImagem(url, altText) {
+  // Criar modal para exibir imagem expandida
+  const modal = document.createElement('div');
+  modal.className = 'image-modal';
+  modal.innerHTML = `
+    <div class="image-modal-content">
+      <span class="image-modal-close" onclick="fecharModalImagem()">&times;</span>
+      <img src="${url}" alt="${altText}" class="image-modal-img">
+      <div class="image-modal-caption">${altText}</div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  modal.style.display = 'block';
+  
+  // Fechar modal ao clicar fora da imagem
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      fecharModalImagem();
+    }
+  });
+}
+
+// Função para fechar modal de imagem
+function fecharModalImagem() {
+  const modal = document.querySelector('.image-modal');
+  if (modal) {
+    modal.remove();
   }
 }

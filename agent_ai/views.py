@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import numpy as np
 import re
 from agent_ai.utils import criar_audio, criar_audio_async, validar_texto_audio
-from .models import Manual, Resposta, Conversa, Mensagem
+from .models import Manual, Resposta, Conversa, Mensagem, ManualProcessado
 from .embedding import gerar_embeddings
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -70,7 +70,6 @@ def buscar_manual(request, manual_id):
     })
 
 
-
 def buscar_resposta(request, manual_id, query):
     manual = get_object_or_404(Manual, id=manual_id)
     resposta = Resposta.objects.filter(manual=manual).first()
@@ -94,17 +93,34 @@ def buscar_resposta(request, manual_id, query):
 
 
 def buscar_contexto_relevante(pergunta, limite_similaridade=0.4, top_k=3):
-    """Busca o contexto mais relevante para a pergunta."""
+    """Busca o contexto mais relevante para a pergunta em manuais processados e respostas antigas."""
     pergunta_embedding = gerar_embeddings(pergunta)
     
     if pergunta_embedding is None:
         return None, 0.0
     
-    resposta, similaridade = Resposta.objects.buscar_melhor_resposta(
+    # Busca primeiro nos manuais processados (prioridade)
+    manual_processado, similaridade_manual = ManualProcessado.objects.buscar_melhor_manual(
         pergunta_embedding, limite_similaridade
     )
     
-    return resposta, similaridade
+    # Busca também nas respostas antigas
+    resposta, similaridade_resposta = Resposta.objects.buscar_melhor_resposta(
+        pergunta_embedding, limite_similaridade
+    )
+    
+    # Retorna o contexto com maior similaridade
+    if manual_processado and resposta:
+        if similaridade_manual >= similaridade_resposta:
+            return manual_processado, similaridade_manual
+        else:
+            return resposta, similaridade_resposta
+    elif manual_processado:
+        return manual_processado, similaridade_manual
+    elif resposta:
+        return resposta, similaridade_resposta
+    
+    return None, 0.0
 
 
 def obter_ou_criar_conversa(session_id=None):
@@ -171,18 +187,44 @@ def perguntar_spart_stream(request):
             contexto_memoria = conversa.get_contexto_memoria(limite=6)
             
             if contexto and similaridade > 0.4:
+                # Obtém o conteúdo do contexto (pode ser ManualProcessado ou Resposta)
+                if hasattr(contexto, 'conteudo_markdown'):
+                    # É um ManualProcessado
+                    conteudo_contexto = contexto.conteudo_markdown[:1500]
+                    fonte_contexto = f"Manual: {contexto.titulo}"
+                    url_manual = contexto.url_original
+                    # Obtém imagens relacionadas ao manual
+                    imagens_relacionadas = list(contexto.imagens.all()[:5])  # Máximo 5 imagens
+                else:
+                    # É uma Resposta - buscar imagens do manual relacionado
+                    conteudo_contexto = contexto.content[:1500]
+                    fonte_contexto = f"Manual: {contexto.manual.title}"
+                    url_manual = contexto.manual.url
+                    # Buscar o ManualProcessado correspondente para obter as imagens
+                    try:
+                        from .models import ManualProcessado
+                        manual_processado = ManualProcessado.objects.get(manual_id=contexto.manual.id)
+                        imagens_relacionadas = list(manual_processado.imagens.all()[:5])  # Máximo 5 imagens
+                    except ManualProcessado.DoesNotExist:
+                        imagens_relacionadas = []
+                
                 # Monta prompt com contexto
+                # Verifica se há imagens disponíveis para mencionar na resposta
+                tem_imagens = len(imagens_relacionadas) > 0
+                instrucao_imagens = "- Se houver referências a imagens no contexto (<!-- image:id -->), mencione que existem imagens ilustrativas disponíveis" if not tem_imagens else "- Mencione que há imagens ilustrativas disponíveis que complementam a explicação"
+                
                 prompt = f"""Você é o Spartacus AI, assistente especializado no sistema Spartacus ERP.
                 
-                INSTRUÇÕES:
+INSTRUÇÕES:
                 - Use APENAS as informações do contexto fornecido
                 - Seja claro, objetivo e didático
                 - Organize a resposta em passos numerados quando apropriado
                 - Não repita informações desnecessariamente
                 - Mantenha um tom profissional e amigável
                 - Considere o histórico da conversa para dar continuidade
+                {instrucao_imagens}
                 
-                CONTEXTO DO SISTEMA: {contexto.content[:1500]}
+                CONTEXTO DO SISTEMA ({fonte_contexto}): {conteudo_contexto}
                 
                 HISTÓRICO DA CONVERSA:
                 {contexto_memoria}
@@ -232,26 +274,44 @@ def perguntar_spart_stream(request):
                      similaridade=similaridade
                  )
              
-             # Gera áudio da resposta completa de forma assíncrona
-            if resposta_completa.strip():
-                 valido, texto_limpo = validar_texto_audio(resposta_completa)
-                 if valido:
-                     def audio_callback(audio_url):
-                         if audio_url:
-                             # Aqui você poderia salvar a URL do áudio no banco ou cache
-                             pass
-                     
-                     criar_audio_async(texto_limpo, callback=audio_callback)
+             # Gera áudio da resposta completa de forma assíncrona (TEMPORARIAMENTE DESABILITADO)
+            # if resposta_completa.strip():
+            #      valido, texto_limpo = validar_texto_audio(resposta_completa)
+            #      if valido:
+            #          def audio_callback(audio_url):
+            #              if audio_url:
+            #                  # Aqui você poderia salvar a URL do áudio no banco ou cache
+            #                  pass
+            #          
+            #          criar_audio_async(texto_limpo, callback=audio_callback)
              
-             # Sinal de fim do stream
-            yield f"data: {json.dumps({'done': True, 'similaridade': float(similaridade), 'session_id': str(conversa.session_id)})}\n\n"
+             # Prepara informações das imagens para o frontend
+            imagens_info = []
+            if contexto and 'imagens_relacionadas' in locals() and imagens_relacionadas:
+                for imagem in imagens_relacionadas:
+                    imagens_info.append({
+                        'url': imagem.get_url_servida(),
+                        'alt_text': imagem.alt_text,
+                        'nome_arquivo': imagem.nome_arquivo,
+                        'ordem': imagem.ordem
+                    })
+             
+             # Sinal de fim do stream com imagens
+            final_data = {
+                'done': True, 
+                'similaridade': float(similaridade), 
+                'session_id': str(conversa.session_id)
+            }
+            if imagens_info:
+                final_data['imagens'] = imagens_info
+            
+            yield f"data: {json.dumps(final_data)}\n\n"
             
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
     response = StreamingHttpResponse(generate_response(), content_type='text/plain')
     response['Cache-Control'] = 'no-cache'
-    response['Connection'] = 'keep-alive'
     return response
 
 
@@ -282,17 +342,37 @@ def perguntar_spart(request):
         contexto_memoria = conversa.get_contexto_memoria(limite=6)
         
         if contexto and similaridade > 0.4:
-            prompt = f"""Você é o Spartacus AI, assistente especializado no sistema Spartacus ERP.
+            # Obtém o conteúdo do contexto (pode ser ManualProcessado ou Resposta)
+                if hasattr(contexto, 'conteudo_markdown'):
+                    # É um ManualProcessado
+                    conteudo_contexto = contexto.conteudo_markdown[:1500]
+                    fonte_contexto = f"Manual: {contexto.titulo}"
+                    url_manual = contexto.url_original
+                    # Obtém imagens relacionadas ao manual
+                    imagens_relacionadas = list(contexto.imagens.all()[:5])  # Máximo 5 imagens
+                else:
+                    # É uma Resposta
+                    conteudo_contexto = contexto.content[:1500]
+                    fonte_contexto = f"Manual: {contexto.manual.title}"
+                    url_manual = contexto.manual.url
+                    imagens_relacionadas = []
             
+                # Verifica se há imagens disponíveis para mencionar na resposta
+                tem_imagens = len(imagens_relacionadas) > 0
+                instrucao_imagens = "- Se houver referências a imagens no contexto (<!-- image:id -->), mencione que existem imagens ilustrativas disponíveis" if not tem_imagens else "- Mencione que há imagens ilustrativas disponíveis que complementam a explicação"
+            
+                prompt = f"""Você é o Spartacus AI, assistente especializado no sistema Spartacus ERP.
+                
 INSTRUÇÕES:
-            - Use APENAS as informações do contexto fornecido
-            - Seja claro, objetivo e didático
-            - Organize a resposta em passos numerados quando apropriado
-            - Não repita informações desnecessariamente
-            - Mantenha um tom profissional e amigável
-            - Considere o histórico da conversa para dar continuidade
+                - Use APENAS as informações do contexto fornecido
+                - Seja claro, objetivo e didático
+                - Organize a resposta em passos numerados quando apropriado
+                - Não repita informações desnecessariamente
+                - Mantenha um tom profissional e amigável
+                - Considere o histórico da conversa para dar continuidade
+                {instrucao_imagens}
             
-            CONTEXTO DO SISTEMA: {contexto.content[:1500]}
+            CONTEXTO DO SISTEMA ({fonte_contexto}): {conteudo_contexto}
             
             HISTÓRICO DA CONVERSA:
             {contexto_memoria}
@@ -333,20 +413,32 @@ INSTRUÇÕES:
             similaridade=similaridade
         )
         
-        # Gera áudio da resposta
+        # Gera áudio da resposta (TEMPORARIAMENTE DESABILITADO PARA PERFORMANCE)
         audio_url = None
-        if resposta_gpt:
-            valido, texto_limpo = validar_texto_audio(resposta_gpt)
-            if valido:
-                audio_url = criar_audio(texto_limpo)
+        # if resposta_gpt:
+        #     valido, texto_limpo = validar_texto_audio(resposta_gpt)
+        #     if valido:
+        #         audio_url = criar_audio(texto_limpo)
+        
+        # Prepara informações das imagens para o frontend
+        imagens_info = []
+        if contexto and hasattr(contexto, 'conteudo_markdown') and imagens_relacionadas:
+            for imagem in imagens_relacionadas:
+                imagens_info.append({
+                    'url': imagem.get_url_servida(),
+                    'alt_text': imagem.alt_text,
+                    'nome_arquivo': imagem.nome_arquivo,
+                    'ordem': imagem.ordem
+                })
         
         return JsonResponse({
             'resposta': resposta_gpt,
             'similaridade': float(similaridade),
-            'manual': contexto.manual.url if contexto else None,
+            'manual': url_manual if contexto else None,
             'feedback': 'Resposta gerada com IA baseada no conhecimento do sistema.',
             'audio_url': audio_url,
-            'session_id': str(conversa.session_id)
+            'session_id': str(conversa.session_id),
+            'imagens': imagens_info
         })
         
     except Exception as e:

@@ -1,12 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .api_views import ManualViewSet, RespostaViewSet, AgenteAIViewSet
+from .api_views import ManualViewSet, RespostaViewSet, AgenteAIViewSet, ManualProcessadoViewSet, ImagemManualViewSet
 
 # Router para as ViewSets
 router = DefaultRouter()
 router.register(r'manuais', ManualViewSet, basename='manual')
 router.register(r'respostas', RespostaViewSet, basename='resposta')
 router.register(r'agente', AgenteAIViewSet, basename='agente')
+router.register(r'manuais-processados', ManualProcessadoViewSet, basename='manual-processado')
+router.register(r'imagens-manual', ImagemManualViewSet, basename='imagem-manual')
 
 # URLs da API
 api_urlpatterns = [

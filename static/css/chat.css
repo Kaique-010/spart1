@@ -1,5 +1,11 @@
 /* Estilos modernos para o chat Spartacus */
 
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #0f1530 0%, #764ba2 100%);
+  margin: 0;
+  padding: 0;
+}
 /* Botão flutuante do chat */
 #chat-button {
   position: fixed;
@@ -160,6 +166,28 @@
   border: 1px solid #e5e7eb;
   border-bottom-left-radius: 6px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* Formatação para listas e quebras de linha */
+.message-bot .message-content p {
+  margin: 0 0 8px 0;
+}
+
+.message-bot .message-content ul,
+.message-bot .message-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message-bot .message-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.message-bot .message-content br {
+  line-height: 1.8;
 }
 
 .message-label {
@@ -201,11 +229,17 @@
   animation: typingAnimation 1.4s infinite ease-in-out;
 }
 
-.typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.typing-dot:nth-child(2) { animation-delay: -0.16s; }
+.typing-dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes typingAnimation {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
@@ -333,7 +367,7 @@
     border-radius: 0;
     animation: slideUpMobile 0.3s ease-out;
   }
-  
+
   @keyframes slideUpMobile {
     from {
       transform: translateY(100%);
@@ -342,11 +376,11 @@
       transform: translateY(0);
     }
   }
-  
+
   #chat-body {
     height: calc(100vh - 140px);
   }
-  
+
   .message-content {
     max-width: 85%;
   }
@@ -383,33 +417,134 @@
   }
 }
 
+/* Estilos para imagens nas mensagens */
+.message-images {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.image-container {
+  position: relative;
+  max-width: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.image-container:hover {
+  transform: scale(1.02);
+}
+
+.manual-image {
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  object-fit: cover;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.manual-image:hover {
+  opacity: 0.9;
+}
+
+.image-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: white;
+  padding: 8px 6px 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Modal para expansão de imagens */
+.image-modal {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  animation: fadeIn 0.3s ease;
+}
+
+.image-modal-content {
+  position: relative;
+  margin: auto;
+  padding: 20px;
+  width: 90%;
+  max-width: 800px;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+}
+
+.image-modal-img {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.image-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 25px;
+  color: white;
+  font-size: 35px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 2001;
+}
+
+.image-modal-close:hover {
+  color: #ccc;
+}
+
+.image-modal-caption {
+  color: white;
+  margin-top: 15px;
+  font-size: 16px;
+  text-align: center;
+}
+
 /* Tema escuro (opcional) */
 @media (prefers-color-scheme: dark) {
   #chat-modal {
     background: #1f2937;
   }
-  
+
   #chat-body {
     background: #111827;
   }
-  
+
   .message-bot .message-content {
     background: #374151;
     color: #f9fafb;
     border-color: #4b5563;
   }
-  
+
   #chat-footer {
     background: #1f2937;
     border-color: #4b5563;
   }
-  
+
   #chat-input {
     background: #374151;
     border-color: #4b5563;
     color: #f9fafb;
   }
-  
+
   #chat-input:focus {
     background: #4b5563;
   }

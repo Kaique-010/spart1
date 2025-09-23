@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.http import StreamingHttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.openapi import AutoSchema
-from .models import Manual, Resposta
+from .models import Manual, Resposta, ManualProcessado, ImagemManual
 from .serializers import (
     ManualSerializer, RespostaSerializer, PerguntaSerializer,
     RespostaAgentSerializer, StreamResponseSerializer,
@@ -172,12 +172,128 @@ class AgenteAIViewSet(viewsets.ViewSet):
         serializer = PerguntaSerializer(data=request.data)
         if serializer.is_valid():
             try:
-                # Reutiliza a função existente
-                response = perguntar_spart(request)
-                if hasattr(response, 'content'):
-                    data = json.loads(response.content)
-                    return Response(data, status=response.status_code)
-                return response
+                from .views import (
+                    buscar_contexto_relevante, obter_ou_criar_conversa, 
+                    salvar_mensagem, client
+                )
+                from .utils import criar_audio, validar_texto_audio
+                
+                pergunta = serializer.validated_data['pergunta']
+                session_id = serializer.validated_data.get('session_id')
+                
+                # Obtém ou cria conversa
+                conversa = obter_ou_criar_conversa(session_id)
+                
+                # Salva a pergunta do usuário
+                salvar_mensagem(conversa, 'pergunta', pergunta)
+                
+                # Busca contexto relevante
+                contexto, similaridade = buscar_contexto_relevante(pergunta)
+                
+                # Obtém contexto de memória da conversa
+                contexto_memoria = conversa.get_contexto_memoria(limite=6)
+                
+                if contexto and similaridade > 0.4:
+                    # Obtém o conteúdo do contexto (pode ser ManualProcessado ou Resposta)
+                    if hasattr(contexto, 'conteudo_markdown'):
+                        # É um ManualProcessado
+                        conteudo_contexto = contexto.conteudo_markdown[:1500]
+                        fonte_contexto = f"Manual: {contexto.titulo}"
+                        url_manual = contexto.url_original
+                        # Obtém imagens relacionadas ao manual
+                        imagens_relacionadas = list(contexto.imagens.all()[:5])  # Máximo 5 imagens
+                    else:
+                        # É uma Resposta
+                        conteudo_contexto = contexto.content[:1500]
+                        fonte_contexto = f"Manual: {contexto.manual.title}"
+                        url_manual = contexto.manual.url
+                        imagens_relacionadas = []
+                    
+                    # Verifica se há imagens disponíveis para mencionar na resposta
+                    tem_imagens = len(imagens_relacionadas) > 0
+                    instrucao_imagens = "- Se houver referências a imagens no contexto (<!-- image:id -->), mencione que existem imagens ilustrativas disponíveis" if not tem_imagens else "- Mencione que há imagens ilustrativas disponíveis que complementam a explicação"
+                    
+                    prompt = f"""Você é o Spartacus AI, assistente especializado no sistema Spartacus ERP.
+                    
+INSTRUÇÕES:
+                    - Use APENAS as informações do contexto fornecido
+                    - Seja claro, objetivo e didático
+                    - Organize a resposta em passos numerados quando apropriado
+                    - Não repita informações desnecessariamente
+                    - Mantenha um tom profissional e amigável
+                    - Considere o histórico da conversa para dar continuidade
+                    {instrucao_imagens}
+                    
+                    CONTEXTO DO SISTEMA ({fonte_contexto}): {conteudo_contexto}
+                    
+                    HISTÓRICO DA CONVERSA:
+                    {contexto_memoria}
+                    
+                    PERGUNTA ATUAL: {pergunta}
+                    
+                    RESPOSTA (seja conciso e direto):"""
+                else:
+                    url_manual = None
+                    prompt = f"""Você é o Spartacus AI, assistente do sistema Spartacus ERP.
+                    
+                    HISTÓRICO DA CONVERSA:
+                    {contexto_memoria}
+                    
+                    O usuário perguntou: "{pergunta}"
+                    
+                    Responda de forma educada que você não encontrou informações específicas sobre essa pergunta na base de conhecimento atual. Sugira que consulte a central de ajuda oficial do Spartacus.
+                    
+                    Seja breve e direto:"""
+                
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Você é um assistente especializado em ERP Spartacus. Seja sempre conciso, claro e evite repetições."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=400,
+                    temperature=0.3
+                )
+                
+                resposta_gpt = response.choices[0].message.content.strip()
+                
+                # Salva a resposta na conversa
+                salvar_mensagem(
+                    conversa, 
+                    'resposta', 
+                    resposta_gpt, 
+                    resposta_relacionada=contexto,
+                    similaridade=similaridade
+                )
+                
+                # Gera áudio da resposta (TEMPORARIAMENTE DESABILITADO PARA PERFORMANCE)
+                audio_url = None
+                # if resposta_gpt:
+                #     valido, texto_limpo = validar_texto_audio(resposta_gpt)
+                #     if valido:
+                #         audio_url = criar_audio(texto_limpo)
+                
+                # Prepara informações das imagens para o frontend
+                imagens_info = []
+                if contexto and hasattr(contexto, 'conteudo_markdown') and imagens_relacionadas:
+                    for imagem in imagens_relacionadas:
+                        imagens_info.append({
+                            'url': imagem.get_url_servida(),
+                            'alt_text': imagem.alt_text,
+                            'nome_arquivo': imagem.nome_arquivo,
+                            'ordem': imagem.ordem
+                        })
+                
+                return JsonResponse({
+                    'resposta': resposta_gpt,
+                    'similaridade': float(similaridade),
+                    'manual': url_manual if contexto else None,
+                    'feedback': 'Resposta gerada com IA baseada no conhecimento do sistema.',
+                    'audio_url': audio_url,
+                    'session_id': str(conversa.session_id),
+                    'imagens': imagens_info
+                })
+                
             except Exception as e:
                 return Response(
                     {
@@ -292,3 +408,188 @@ class AgenteAIViewSet(viewsets.ViewSet):
                 'chat': 'gpt-3.5-turbo'
             }
         })
+
+
+class ManualProcessadoViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para visualizar manuais processados com conteúdo markdown.
+    
+    Permite listar e visualizar manuais que foram processados e salvos no banco
+    com conteúdo markdown e embeddings para busca semântica.
+    """
+    queryset = ManualProcessado.objects.all().order_by('-created_at')
+    
+    def get_serializer_class(self):
+        # Serializer simples inline
+        from rest_framework import serializers
+        
+        class ManualProcessadoSerializer(serializers.ModelSerializer):
+            total_imagens = serializers.IntegerField(read_only=True)
+            tem_embedding = serializers.SerializerMethodField()
+            
+            def get_tem_embedding(self, obj):
+                return bool(obj.embedding)
+            
+            class Meta:
+                model = ManualProcessado
+                fields = ['id', 'manual_id', 'titulo', 'url_original', 
+                         'conteudo_markdown', 'total_imagens', 'tem_embedding',
+                         'created_at', 'updated_at']
+        
+        return ManualProcessadoSerializer
+    
+    @extend_schema(
+        summary="Listar manuais processados",
+        description="Lista todos os manuais que foram processados e salvos no banco de dados."
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @extend_schema(
+        summary="Visualizar manual processado",
+        description="Visualiza um manual processado específico com todo o conteúdo markdown."
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @extend_schema(
+        summary="Buscar manuais por similaridade",
+        description="Busca manuais processados usando busca semântica por similaridade.",
+        parameters=[
+            OpenApiParameter(
+                name='pergunta',
+                description='Texto da pergunta para busca semântica',
+                required=True,
+                type=str,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name='limite',
+                description='Limite mínimo de similaridade (0.0 a 1.0)',
+                required=False,
+                type=float,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name='top_k',
+                description='Número máximo de resultados',
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY
+            )
+        ]
+    )
+    @action(detail=False, methods=['get'])
+    def buscar_por_similaridade(self, request):
+        """Busca manuais processados por similaridade semântica."""
+        from .embedding import gerar_embeddings
+        
+        pergunta = request.query_params.get('pergunta')
+        limite = float(request.query_params.get('limite', 0.4))
+        top_k = int(request.query_params.get('top_k', 5))
+        
+        if not pergunta:
+            return Response({'erro': 'Parâmetro pergunta é obrigatório'}, status=400)
+        
+        try:
+            pergunta_embedding = gerar_embeddings(pergunta)
+            manuais, similaridades = ManualProcessado.objects.buscar_por_similaridade(
+                pergunta_embedding, limite, top_k
+            )
+            
+            resultados = []
+            for manual, similaridade in zip(manuais, similaridades):
+                resultados.append({
+                    'id': manual.id,
+                    'manual_id': manual.manual_id,
+                    'titulo': manual.titulo,
+                    'url_original': manual.url_original,
+                    'similaridade': similaridade,
+                    'total_imagens': manual.total_imagens,
+                    'preview_conteudo': manual.conteudo_markdown[:200] + '...' if len(manual.conteudo_markdown) > 200 else manual.conteudo_markdown
+                })
+            
+            return Response({
+                'resultados': resultados,
+                'total_encontrados': len(resultados),
+                'pergunta': pergunta,
+                'limite_similaridade': limite
+            })
+            
+        except Exception as e:
+            return Response({'erro': str(e)}, status=500)
+
+
+class ImagemManualViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para servir imagens dos manuais processados.
+    
+    Permite listar e visualizar imagens que foram extraídas e salvas
+    durante o processamento dos manuais.
+    """
+    queryset = ImagemManual.objects.all().order_by('manual_processado', 'ordem')
+    
+    def get_serializer_class(self):
+        from rest_framework import serializers
+        
+        class ImagemManualSerializer(serializers.ModelSerializer):
+            url_servida = serializers.SerializerMethodField()
+            manual_titulo = serializers.CharField(source='manual_processado.titulo', read_only=True)
+            
+            def get_url_servida(self, obj):
+                return obj.get_url_servida()
+            
+            class Meta:
+                model = ImagemManual
+                fields = ['id', 'manual_processado', 'manual_titulo', 'url_original', 
+                         'nome_arquivo', 'alt_text', 'ordem', 'tamanho_bytes',
+                         'url_servida', 'created_at']
+        
+        return ImagemManualSerializer
+    
+    @extend_schema(
+        summary="Listar imagens dos manuais",
+        description="Lista todas as imagens extraídas dos manuais processados."
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @extend_schema(
+        summary="Visualizar imagem específica",
+        description="Visualiza metadados de uma imagem específica."
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @extend_schema(
+        summary="Listar imagens por manual",
+        description="Lista todas as imagens de um manual processado específico.",
+        parameters=[
+            OpenApiParameter(
+                name='manual_id',
+                description='ID do manual processado',
+                required=True,
+                type=int,
+                location=OpenApiParameter.PATH
+            )
+        ]
+    )
+    @action(detail=False, methods=['get'], url_path='manual/(?P<manual_id>[^/.]+)')
+    def por_manual(self, request, manual_id=None):
+        """Lista imagens de um manual específico."""
+        try:
+            manual = ManualProcessado.objects.get(id=manual_id)
+            imagens = self.queryset.filter(manual_processado=manual)
+            serializer = self.get_serializer(imagens, many=True)
+            
+            return Response({
+                'manual': {
+                    'id': manual.id,
+                    'titulo': manual.titulo,
+                    'total_imagens': manual.total_imagens
+                },
+                'imagens': serializer.data
+            })
+            
+        except ManualProcessado.DoesNotExist:
+            return Response({'erro': 'Manual não encontrado'}, status=404)

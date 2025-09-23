@@ -7,4 +7,4 @@ class AgentAiConfig(AppConfig):
     name = 'agent_ai'
 
     def ready(self):
-        import agent_ai.signals  # Aqui você importa os sinais
+        import agent_ai.signals

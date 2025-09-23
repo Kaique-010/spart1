@@ -1,5 +1,10 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+# Carrega variáveis do arquivo .env
+load_dotenv()
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-r7t_y++!$nk1k5)cj-&qta&=dri+13+!@t0x9xfnelnd76^6xv'
@@ -94,6 +99,9 @@ USE_I18N = True
 
 USE_TZ = True
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -188,4 +196,7 @@ SPECTACULAR_SETTINGS = {
         'url': 'https://spartacus.com.br/license'
     }
 }
+
+# Configuração da OpenAI API
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 

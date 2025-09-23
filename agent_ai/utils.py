@@ -7,8 +7,73 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 import logging
+from bs4 import BeautifulSoup
+import re
+from urllib.parse import urljoin, urlparse
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
+
+# Modelo para embeddings
+embedding_model = None
+
+def get_embedding_model():
+    """Carrega o modelo de embeddings de forma lazy."""
+    global embedding_model
+    if embedding_model is None:
+        try:
+            embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        except Exception as e:
+            logger.error(f"Erro ao carregar modelo de embeddings: {e}")
+            embedding_model = None
+    return embedding_model
+
+def gerar_embeddings(texto):
+    """Gera embeddings para um texto."""
+    try:
+        model = get_embedding_model()
+        if model is None:
+            return np.array([])
+        
+        # Limita o texto para evitar problemas de memória
+        texto_limitado = texto[:5000] if len(texto) > 5000 else texto
+        embeddings = model.encode(texto_limitado)
+        return embeddings
+    except Exception as e:
+        logger.error(f"Erro ao gerar embeddings: {e}")
+        return np.array([])
+
+def extrair_imagens_do_html(html_content):
+    """Extrai URLs de imagens do conteúdo HTML."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        imagens = []
+        
+        # Encontra todas as tags img
+        img_tags = soup.find_all('img')
+        
+        for img in img_tags:
+            src = img.get('src')
+            if src:
+                # Converte URLs relativas para absolutas se necessário
+                if src.startswith('//'):
+                    src = 'https:' + src
+                elif src.startswith('/'):
+                    # Assume que é do domínio spartacus
+                    src = 'https://spartacus.movidesk.com' + src
+                elif not src.startswith('http'):
+                    # URL relativa
+                    src = 'https://spartacus.movidesk.com/' + src.lstrip('./')
+                
+                # Filtra apenas imagens válidas
+                if any(ext in src.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                    imagens.append(src)
+        
+        return list(set(imagens))  # Remove duplicatas
+    except Exception as e:
+        logger.error(f"Erro ao extrair imagens do HTML: {e}")
+        return []
 
 def criar_audio(mensagem, lang="pt-br", slow=False):
     """Cria arquivo de áudio a partir de texto usando gTTS."""
