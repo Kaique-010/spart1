@@ -2,14 +2,14 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background: linear-gradient(135deg, #0f1530 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0f1530 0%, #d4fdf3 100%);
   margin: 0;
-  padding: 0;
+  padding: 5px 0px;
 }
 /* Botão flutuante do chat */
 #chat-button {
   position: fixed;
-  bottom: 20px;
+  bottom: 50px;
   right: 20px;
   width: 60px;
   height: 60px;
@@ -42,12 +42,14 @@ body {
   right: 20px;
   width: 380px;
   height: 500px;
-  background: #ffffff;
+  background: #360e0e;
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   z-index: 1001;
   overflow: hidden;
   animation: slideUp 0.3s ease-out;
+  padding: 0px 2px 35px 0px;
+  border-radius: 45px;
 }
 
 @keyframes slideUp {
@@ -63,9 +65,9 @@ body {
 
 /* Cabeçalho do chat */
 #chat-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6e7697 0%, #764ba2 100%);
   color: white;
-  padding: 16px 20px;
+  padding: 25px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;

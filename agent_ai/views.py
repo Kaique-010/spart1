@@ -348,8 +348,8 @@ def perguntar_spart(request):
                     conteudo_contexto = contexto.conteudo_markdown[:1500]
                     fonte_contexto = f"Manual: {contexto.titulo}"
                     url_manual = contexto.url_original
-                    # Obtém imagens relacionadas ao manual
-                    imagens_relacionadas = list(contexto.imagens.all()[:5])  # Máximo 5 imagens
+                    # Obtém imagens relacionadas ao manual e passa ao contexto da resposta
+                    imagens_relacionadas = list(contexto.imagens.all()[:10])  # Máximo 10 imagens
                 else:
                     # É uma Resposta
                     conteudo_contexto = contexto.content[:1500]
@@ -390,15 +390,18 @@ INSTRUÇÕES:
             
             Responda de forma educada que você não encontrou informações específicas sobre essa pergunta na base de conhecimento atual. Sugira que consulte a central de ajuda oficial do Spartacus.
             
-            Seja breve e direto:"""
+            Seja breve e direto:
+            
+            no fim das suas repostas sempre indique a central de ajuda oficial do Spartacus:  https://spartacus.movidesk.com/kb/'
+            """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Você é um assistente especializado em ERP Spartacus. Seja sempre conciso, claro e evite repetições."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=400,
+            max_tokens=600,
             temperature=0.3
         )
         
